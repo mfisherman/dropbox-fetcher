@@ -8,6 +8,7 @@ import com.dropbox.core.v2.files.Metadata;
 import picocli.CommandLine;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.FileHandler;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
@@ -16,6 +17,7 @@ import java.util.logging.SimpleFormatter;
  * Downloads files from a Dropbox folder, skips duplicates,
  * deletes downloaded files from Dropbox, and logs all activity.
  * Uses SQLite via ORMLite to track previously downloaded files.
+ * Supports one-time run or watch mode.
  */
 public final class DropboxFetcher {
     private DropboxFetcher() {
@@ -24,6 +26,8 @@ public final class DropboxFetcher {
     private static final Logger logger = Logger.getLogger("DropboxFetcher");
     private static final int LOGGER_MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
     private static final int LOGGER_MAX_FILE_COUNT = 10;
+
+    private static AtomicBoolean running = new AtomicBoolean(true);
 
     public static void main(String[] args) {
         try {
@@ -34,11 +38,32 @@ public final class DropboxFetcher {
             setupLogger(config);
             logger.info("START DropboxFetcher");
 
+            Thread mainThread = Thread.currentThread();
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                logger.info("Received shutdown signal. Exiting...");
+                running.set(false);
+                mainThread.interrupt();
+            }));
+
             DbxClientV2 client = createDropboxClient(config);
             File localDownloadDir = getLocalDownloadDir(config);
 
             try (DropboxFileDatabase db = new DropboxFileDatabase(config.getDbPath())) {
-                processDropboxFolder(client, db, localDownloadDir, config.getDropboxPath());
+                while (running.get()) {
+                    processDropboxFolder(client, db, localDownloadDir, config.getDropboxPath());
+                    if (config.getMode() != Mode.WATCH) {
+                        break;
+                    }
+
+                    logger.info("Waiting for " + config.getWatchInterval()
+                            + " seconds before checking for new files again...");
+                    try {
+                        Thread.sleep(config.getWatchInterval() * 1000L);
+                    } catch (InterruptedException e) {
+                        logger.warning("Sleep interrupted. Exiting...");
+                        break;
+                    }
+                }
             }
 
             logger.info("FINISHED DropboxFetcher");
@@ -78,7 +103,7 @@ public final class DropboxFetcher {
 
         // List files in the Dropbox folder.
         ListFolderResult listFolderResult = client.files().listFolder(dropboxFolder);
-        while (true) {
+        while (running.get()) {
             for (Metadata metadata : listFolderResult.getEntries()) {
                 if (!(metadata instanceof FileMetadata)) {
                     logger.info("SKIPPED non-file entry: " + metadata.getPathLower());
@@ -121,7 +146,7 @@ public final class DropboxFetcher {
         try (FileOutputStream out = new FileOutputStream(localFile)) {
             client.files().download(dropboxFilePath).download(out);
             logger.info(String.format("DOWNLOADED: dropbox_file_path=%s, dropbox_content_hash=%s",
-                dropboxFilePath, dropboxContentHash));
+                    dropboxFilePath, dropboxContentHash));
         } catch (Exception e) {
             logger.severe(String.format("DOWNLOAD FAILED: dropbox_file_path=%s, local_file=%s, reason=%s",
                     dropboxFilePath, localFile.getAbsolutePath(), e.getMessage()));

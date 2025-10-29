@@ -1,7 +1,7 @@
 # dropbox-fetcher
 
 A lightweight Java utility that automatically downloads all files from a specified Dropbox folder, skips already-downloaded files, and removes them from Dropbox after download.
-Designed for scheduled runs (e.g., via cron, systemd timer, or CI job).
+Designed for scheduled runs (e.g., via cron, systemd timer, or CI job) and supports watch mode to regularly check for files to download.
 
 ---
 
@@ -63,7 +63,7 @@ java -jar target/dropbox-fetcher.jar \
   --log="/home/user/dropbox-fetcher.log"
 ```
 
-### 4. Run Periodically (Optional)
+### 4. Run periodically (optional)
 
 Example cron job to run every day at 2am:
 
@@ -76,13 +76,25 @@ Example cron job to run every day at 2am:
   --log="/home/user/dropbox-fetcher.log"
 ```
 
+### 5. Run in watch mode (optional)
+
+```bash
+java -jar target/dropbox-fetcher.jar \
+  --access-token=sl.BCDEF12345xyz \
+  --dropbox-path="/Fotos" \
+  --local-download-dir="/home/user/photos" \
+  --db="/home/user/dropbox-fetcher.db" \
+  --log="/home/user/dropbox-fetcher.log" \
+  --mode=WATCH
+```
+
 ## Logging
 
 Every run creates (or appends to) a log file that lists each action.
 
 ---
 
-## Developer Notes
+## Developer notes
 
 - Uses **ORMLite** for lightweight SQLite persistence, avoiding raw SQL
 - Automatically creates the database and tables on first run
