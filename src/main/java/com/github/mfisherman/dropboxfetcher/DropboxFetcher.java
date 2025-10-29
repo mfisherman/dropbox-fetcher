@@ -129,6 +129,7 @@ public final class DropboxFetcher {
             // Skip if the content hash is known.
             logger.info(String.format("SKIPPED duplicate: dropbox_file_path=%s, dropbox_content_hash=%s",
                     dropboxFilePath, dropboxContentHash));
+            deleteDropboxFile(client, dropboxFilePath);
             return;
         }
 
@@ -169,7 +170,7 @@ public final class DropboxFetcher {
             return;
         }
 
-        logger.info(String.format("HASH VERIFIED: %s (hash=%s)", localFile.getName(),
+        logger.info(String.format("HASH VERIFIED: %s (dropbox_content_hash=%s)", localFile.getName(),
                 computedDropboxContentHash));
 
         // Insert into the database.
@@ -180,10 +181,14 @@ public final class DropboxFetcher {
                 dropboxFilePath, dropboxContentHash));
 
         // Always try to delete the file: it has been downloaded.
+        deleteDropboxFile(client, dropboxFilePath);
+    }
+
+    private static void deleteDropboxFile(DbxClientV2 client, String dropboxFilePath) {
         try {
             client.files().deleteV2(dropboxFilePath);
-            logger.info(String.format("DELETED: dropbox_file_path=%s, dropbox_content_hash=%s",
-                    dropboxFilePath, dropboxContentHash));
+            logger.info(String.format("DELETED: dropbox_file_path=%s",
+                    dropboxFilePath));
         } catch (Exception ex) {
             logger.warning(String.format("DELETE FAILED: dropbox_file_path=%s, reason=%s",
                     dropboxFilePath, ex.getMessage()));
