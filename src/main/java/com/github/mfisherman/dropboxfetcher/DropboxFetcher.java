@@ -10,9 +10,9 @@ import picocli.CommandLine;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.ConsoleHandler;
 import java.util.logging.FileHandler;
 import java.util.logging.Logger;
-import java.util.logging.SimpleFormatter;
 
 /**
  * Downloads files from a Dropbox folder, skips duplicates,
@@ -79,11 +79,19 @@ public final class DropboxFetcher {
     }
 
     private static void setupLogger(Config config) throws Exception {
+        logger.setUseParentHandlers(false);
+
+        SimpleLogFormatter formatter = new SimpleLogFormatter();
+
+        // File logging
         FileHandler fh = new FileHandler(config.getLogFile(), LOGGER_MAX_FILE_SIZE, LOGGER_MAX_FILE_COUNT, true);
-        fh.setFormatter(new SimpleFormatter());
+        fh.setFormatter(formatter);
         logger.addHandler(fh);
-        // Also log to console.
-        logger.setUseParentHandlers(true);
+
+        // Console logging
+        ConsoleHandler ch = new ConsoleHandler();
+        ch.setFormatter(formatter);
+        logger.addHandler(ch);
     }
 
     private static DbxClientV2 createDropboxClient(Config config) {
