@@ -32,6 +32,9 @@ public final class DropboxFetcher {
 
     public static void main(String[] args) {
         try {
+            // Set ORMLite log level to WARNING to reduce verbosity.
+            com.j256.ormlite.logger.Logger.setGlobalLogLevel(com.j256.ormlite.logger.Level.WARNING);
+
             // Read command line arguments.
             Config config = new Config();
             CommandLine.populateCommand(config, args);
