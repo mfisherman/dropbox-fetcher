@@ -34,7 +34,7 @@ class DropboxFile {
     }
 
     public DropboxFile(String localFileName, String dropboxPath, String dropboxFileName, String sha256,
-            String dropboxContentHash) throws Exception {
+            String dropboxContentHash) {
         this.localFileName = localFileName;
         this.dropboxPath = dropboxPath;
         this.dropboxFileName = dropboxFileName;
