@@ -1,6 +1,7 @@
 package com.github.mfisherman.dropboxfetcher;
 
 import com.dropbox.core.DbxRequestConfig;
+import com.dropbox.core.RetryException;
 import com.dropbox.core.v2.DbxClientV2;
 import com.dropbox.core.v2.files.FileMetadata;
 import com.dropbox.core.v2.files.ListFolderResult;
@@ -149,10 +150,20 @@ public final class DropboxFetcher {
             logger.info(String.format("DOWNLOADED: dropbox_file_path=%s, dropbox_content_hash=%s",
                     dropboxFilePath, dropboxContentHash));
         } catch (Exception e) {
-            logger.severe(String.format("DOWNLOAD FAILED: dropbox_file_path=%s, local_file=%s, reason=%s",
-                    dropboxFilePath, localFile.getAbsolutePath(), e.getMessage()));
-            if (!localFile.delete()) {
+            logger.severe(String.format("DOWNLOAD FAILED: dropbox_file_path=%s, local_file=%s, reason=%s, exception=%s",
+                    dropboxFilePath, localFile.getAbsolutePath(), e.getMessage(), e));
+            if (localFile.exists() && !localFile.delete()) {
                 logger.severe("ERROR to delete corrupted file: " + localFile.getAbsolutePath());
+            }
+            if (e instanceof RetryException) {
+                RetryException re = (RetryException) e;
+                logger.warning(String.format("RETRY BACKOFF: Sleep for %s milliseconds", re.getBackoffMillis()));
+                try {
+                    Thread.sleep(re.getBackoffMillis());
+                    // Do not attempt to download again - it will be downloaded next time.
+                } catch (InterruptedException ie) {
+                    logger.warning("Interrupted during retry sleep: " + ie.getMessage());
+                }
             }
             return;
         }
@@ -189,9 +200,19 @@ public final class DropboxFetcher {
             client.files().deleteV2(dropboxFilePath);
             logger.info(String.format("DELETED: dropbox_file_path=%s",
                     dropboxFilePath));
-        } catch (Exception ex) {
-            logger.warning(String.format("DELETE FAILED: dropbox_file_path=%s, reason=%s",
-                    dropboxFilePath, ex.getMessage()));
+        } catch (Exception e) {
+            logger.warning(String.format("DELETE FAILED: dropbox_file_path=%s, reason=%s, exception=%s",
+                    dropboxFilePath, e.getMessage(), e));
+            if (e instanceof RetryException) {
+                RetryException re = (RetryException) e;
+                logger.warning(String.format("RETRY BACKOFF: Sleep for %s milliseconds", re.getBackoffMillis()));
+                try {
+                    Thread.sleep(re.getBackoffMillis());
+                    // Do not attempt to delete again - it will be detected as duplicate next time.
+                } catch (InterruptedException ie) {
+                    logger.warning("Interrupted during retry sleep: " + ie.getMessage());
+                }
+            }
         }
     }
 }
